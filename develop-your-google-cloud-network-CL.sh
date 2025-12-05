@@ -1,25 +1,30 @@
 #!/bin/bash
 
-# --- PRE-FLIGHT CHECK ---
 echo "Starting Challenge Lab Setup..."
 echo "Please ensure you have set the Zone correctly (usually us-central1-c for this lab)."
 read -p "Enter ZONE (e.g., us-central1-c): " ZONE
 export REGION="${ZONE%-*}"
 export PROJECT_ID=$(gcloud config get-value project)
 
-# --- TASK 1: Development VPC ---
+# ------------------
+# ----- TASK 1 -----
+# ------------------
 echo "Creating Development VPC..."
 gcloud compute networks create griffin-dev-vpc --subnet-mode custom
 gcloud compute networks subnets create griffin-dev-wp --network=griffin-dev-vpc --region $REGION --range=192.168.16.0/20
 gcloud compute networks subnets create griffin-dev-mgmt --network=griffin-dev-vpc --region $REGION --range=192.168.32.0/20
 
-# --- TASK 2: Production VPC (FIXED: Converted to Manual) ---
+# ------------------
+# ----- TASK 2 -----
+# ------------------
 echo "Creating Production VPC..."
 gcloud compute networks create griffin-prod-vpc --subnet-mode custom
 gcloud compute networks subnets create griffin-prod-wp --network=griffin-prod-vpc --region $REGION --range=192.168.48.0/20
 gcloud compute networks subnets create griffin-prod-mgmt --network=griffin-prod-vpc --region $REGION --range=192.168.64.0/20
 
-# --- TASK 3: Bastion Host ---
+# ------------------
+# ----- TASK 3 -----
+# ------------------
 echo "Creating Bastion Host..."
 gcloud compute instances create bastion \
     --network-interface=network=griffin-dev-vpc,subnet=griffin-dev-mgmt \
@@ -30,7 +35,9 @@ gcloud compute instances create bastion \
 gcloud compute firewall-rules create fw-ssh-dev --source-ranges=0.0.0.0/0 --target-tags ssh --allow=tcp:22 --network=griffin-dev-vpc
 gcloud compute firewall-rules create fw-ssh-prod --source-ranges=0.0.0.0/0 --target-tags ssh --allow=tcp:22 --network=griffin-prod-vpc
 
-# --- TASK 4: Cloud SQL ---
+# ------------------
+# ----- TASK 4 -----
+# ------------------
 echo "Creating Cloud SQL Instance (This takes a few minutes)..."
 gcloud sql instances create griffin-dev-db \
     --database-version=MYSQL_5_7 \
@@ -42,7 +49,9 @@ echo "Configuring SQL Databases and Users..."
 gcloud sql databases create wordpress --instance=griffin-dev-db
 gcloud sql users create wp_user --instance=griffin-dev-db --host=% --password=stormwind_rules
 
-# --- TASK 5: Kubernetes Cluster ---
+# ------------------
+# ----- TASK 5 -----
+# ------------------
 echo "Creating GKE Cluster..."
 gcloud container clusters create griffin-dev \
   --network griffin-dev-vpc \
@@ -53,7 +62,9 @@ gcloud container clusters create griffin-dev \
 
 gcloud container clusters get-credentials griffin-dev --zone $ZONE
 
-# --- TASK 6: Prepare K8s (FIXED: Bucket URL) ---
+# ------------------
+# ----- TASK 6 -----
+# ------------------
 echo "Preparing K8s Assets..."
 cd ~/
 gsutil cp -r gs://spls/gsp321/wp-k8s .
@@ -88,7 +99,9 @@ gcloud iam service-accounts keys create key.json \
 kubectl create secret generic cloudsql-instance-credentials \
     --from-file key.json
 
-# --- TASK 7: WordPress Deployment ---
+# ------------------
+# ----- TASK 7 -----
+# ------------------
 echo "Deploying WordPress..."
 INSTANCE_CONNECTION_NAME=$(gcloud sql instances describe griffin-dev-db --format='value(connectionName)')
 
@@ -97,7 +110,9 @@ sed -i "s/YOUR_SQL_INSTANCE/$INSTANCE_CONNECTION_NAME/g" wp-deployment.yaml
 kubectl apply -f wp-deployment.yaml
 kubectl apply -f wp-service.yaml
 
-# --- TASK 9: Engineer Access (Moved up to run while Load Balancer provisions) ---
+# ------------------
+# ----- TASK 9 -----
+# ------------------
 gcloud projects get-iam-policy $PROJECT_ID --format="json" \
   | jq -r '.bindings[] | select(.role=="roles/viewer").members[]' \
   | grep "user:" \
@@ -105,7 +120,9 @@ gcloud projects get-iam-policy $PROJECT_ID --format="json" \
     --member="{}" \
     --role="roles/editor"
 
-# --- TASK 8: Monitoring (Wait for IP) ---
+# ------------------
+# ----- TASK 8 -----
+# ------------------
 echo "Waiting for External IP to provision Uptime Check..."
 
 get_external_ip() {
